@@ -1,0 +1,85 @@
+from __future__ import annotations
+
+import os
+from pathlib import Path
+import sys
+
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+
+
+APP_ROOT = Path(__file__).resolve().parent.parent
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
+
+from app.train_models import PROJECTION_END_YEAR, simulate_temperature_scenario
+
+
+def _cors_allow_origins() -> list[str]:
+    origins = {
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    }
+
+    configured = os.getenv("CORS_ALLOW_ORIGINS", "")
+    for origin in configured.split(","):
+        cleaned = origin.strip().rstrip("/")
+        if cleaned:
+            origins.add(cleaned)
+
+    vercel_frontend = os.getenv("VERCEL_FRONTEND_URL", "").strip().rstrip("/")
+    if vercel_frontend:
+        origins.add(vercel_frontend)
+
+    return sorted(origins)
+
+
+app = FastAPI(title="Climate Scenario API", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_allow_origins(),
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+class ScenarioRequest(BaseModel):
+    target_year: int = Field(..., gt=2020, le=PROJECTION_END_YEAR)
+    simulations: int = Field(1000, ge=25, le=10000)
+    co2_modifier: float = Field(0.0, ge=-100.0, le=200.0)
+    forest_loss_modifier: float = Field(0.0, ge=-100.0, le=200.0)
+    renewables_modifier: float = Field(0.0, ge=-100.0, le=200.0)
+    seed: int = Field(42, ge=0, le=2_147_483_647)
+
+
+@app.get("/")
+def root() -> dict[str, object]:
+    return {
+        "name": "Climate Scenario API",
+        "health_path": "/health",
+        "simulate_path": "/simulate",
+        "docs_path": "/docs",
+        "allowed_origins": _cors_allow_origins(),
+    }
+
+
+@app.get("/health")
+def healthcheck() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@app.post("/simulate")
+def simulate(request: ScenarioRequest) -> dict[str, object]:
+    try:
+        return simulate_temperature_scenario(
+            target_year=request.target_year,
+            simulations=request.simulations,
+            co2_modifier=request.co2_modifier,
+            forest_loss_modifier=request.forest_loss_modifier,
+            renewables_modifier=request.renewables_modifier,
+            seed=request.seed,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
