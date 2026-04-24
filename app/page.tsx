@@ -4,8 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Chart from "chart.js/auto";
 
 const DEGREE_LABEL = "\u00B0C";
-const API_BASE =
-  process.env.NEXT_PUBLIC_SCENARIO_API_BASE ?? (process.env.NODE_ENV === "production" ? "/api" : "");
+const API_BASE = "/api";
 
 type Metrics = {
   mae: number;
@@ -304,7 +303,7 @@ export default function Home() {
         const apiUrl = resolveScenarioApiUrl(currentModelData.scenario_metadata.api_path);
         if (!apiUrl) {
           throw new Error(
-            "Scenario API is not configured. In local development, set NEXT_PUBLIC_SCENARIO_API_BASE. In Vercel production, the app can also use the same-project /api route.",
+            "Scenario API is not configured. Set SCENARIO_API_BASE in the frontend deployment so the Next.js /api proxy can reach the backend.",
           );
         }
 
