@@ -111,6 +111,8 @@ Vercel settings for this option:
 - Output Directory: leave empty
 - Install Command: leave empty
 
+Keep `vercel.json` minimal. You do not need a `functions` entry just to make `api/index.py` deploy.
+
 Do not point Vercel at the repo root, and do not point it at `my-app/python-vercel-api` unless you only want the standalone Python API without the Next.js frontend.
 
 If Vercel was previously connected to the wrong folder, update the project setting in:
@@ -127,13 +129,15 @@ Vercel settings for this option:
 
 - Root Directory: `my-app/python-vercel-api`
 
-Its `vercel.json` must reference `api/index.py`. If you see this error:
+Keep `vercel.json` minimal here too. You do not need a `functions` entry for `api/index.py`.
+
+If you see this error:
 
 ```text
 The pattern "index.py" defined in `functions` doesn't match any Serverless Functions inside the `api` directory.
 ```
 
-that means Vercel is reading the standalone API config and the function path is wrong.
+that usually means the `functions` mapping in `vercel.json` is unnecessary or does not match how Vercel is detecting functions for that project.
 
 ### Option B: Render or Railway
 
