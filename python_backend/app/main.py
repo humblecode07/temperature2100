@@ -13,7 +13,10 @@ APP_ROOT = Path(__file__).resolve().parent.parent
 if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
-from app.train_models import PROJECTION_END_YEAR, simulate_temperature_scenario
+from python_backend.app.train_models import (
+    PROJECTION_END_YEAR,
+    simulate_temperature_scenario,
+)
 
 
 def _cors_allow_origins() -> list[str]:

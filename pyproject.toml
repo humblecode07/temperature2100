@@ -1,0 +1,7 @@
+[project]
+name = "temperature-2100-api"
+version = "0.1.0"
+requires-python = ">=3.13,<3.14"
+
+[project.scripts]
+app = "python_backend.app.main:app"

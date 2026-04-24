@@ -12,7 +12,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from statsmodels.tsa.arima.model import ARIMA, ARIMAResults
 
-from app.data_pipeline import load_temperature_data
+from python_backend.app.data_pipeline import load_temperature_data
 
 try:
     import matplotlib
