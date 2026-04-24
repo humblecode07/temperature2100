@@ -104,6 +104,37 @@ In production, the frontend now falls back to:
 
 That means if frontend and backend are deployed together in the same Vercel project, you may not need `NEXT_PUBLIC_SCENARIO_API_BASE` at all.
 
+Vercel settings for this option:
+
+- Root Directory: `my-app`
+- Build Command: leave empty
+- Output Directory: leave empty
+- Install Command: leave empty
+
+Do not point Vercel at the repo root, and do not point it at `my-app/python-vercel-api` unless you only want the standalone Python API without the Next.js frontend.
+
+If Vercel was previously connected to the wrong folder, update the project setting in:
+
+- Vercel Dashboard -> Project -> Settings -> General -> Root Directory
+
+Then redeploy.
+
+### Option A.1: If you deploy only the standalone Python API
+
+The older standalone API copy lives in `my-app/python-vercel-api`.
+
+Vercel settings for this option:
+
+- Root Directory: `my-app/python-vercel-api`
+
+Its `vercel.json` must reference `api/index.py`. If you see this error:
+
+```text
+The pattern "index.py" defined in `functions` doesn't match any Serverless Functions inside the `api` directory.
+```
+
+that means Vercel is reading the standalone API config and the function path is wrong.
+
 ### Option B: Render or Railway
 
 Use these settings:
