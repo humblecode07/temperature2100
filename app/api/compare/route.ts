@@ -18,24 +18,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const rawBody = await request.text();
-  let upstreamPath = "/simulate";
-
-  try {
-    const payload = JSON.parse(rawBody) as { scenario_modifiers?: unknown };
-    if (payload && typeof payload === "object" && "scenario_modifiers" in payload) {
-      upstreamPath = "/compare";
-    }
-  } catch {
-    // Keep the default single-scenario upstream path.
-  }
-
-  const upstream = await fetch(`${backendBase}${upstreamPath}`, {
+  const upstream = await fetch(`${backendBase}/compare`, {
     method: "POST",
     headers: {
       "Content-Type": request.headers.get("content-type") ?? "application/json",
     },
-    body: rawBody,
+    body: await request.text(),
     cache: "no-store",
   });
 

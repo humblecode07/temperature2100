@@ -52,6 +52,23 @@ DEFAULT_SCENARIO_MODIFIERS = {
     "forest_loss": 0.0,
     "renewables": 0.0,
 }
+WORKSPACE_ROOT = PROJECT_ROOT.parent.parent
+HEAT_IMPACT_SUMMARY_CSV = WORKSPACE_ROOT / "python" / "preprocessed_data" / "heat_impact_summary.csv"
+HEAT_IMPACT_FEATURES = ["temperature_anomaly", "year"]
+HEAT_IMPACT_TARGETS = {
+    "heat_mortality_rate": "heat_health_af",
+    "annual_heat_deaths": "heat_health_an",
+    "heat_work_loss_pp": "heat_labor_loss_pp",
+}
+FOOD_AGRICULTURE_SUMMARY_CSV = (
+    WORKSPACE_ROOT / "python" / "preprocessed_data" / "food_agriculture_summary.csv"
+)
+FOOD_AGRICULTURE_FEATURES = ["temperature_anomaly", "year"]
+FOOD_AGRICULTURE_TARGETS = {
+    "undernourishment_pct": "undernourishment_pct",
+    "food_price_index": "food_price_index",
+    "agricultural_water_stress_pct": "agricultural_water_stress_pct",
+}
 
 
 def load_preprocessed_datasets() -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -73,6 +90,64 @@ def load_preprocessed_datasets() -> tuple[pd.DataFrame, pd.DataFrame]:
     )
 
     return long_term, short_term
+
+
+def load_heat_impact_training_data() -> pd.DataFrame:
+    if not HEAT_IMPACT_SUMMARY_CSV.exists():
+        raise FileNotFoundError(
+            f"Heat impact summary not found: {HEAT_IMPACT_SUMMARY_CSV}. "
+            "Run python/app/preprocess_heat_impact.py first."
+        )
+
+    heat = pd.read_csv(HEAT_IMPACT_SUMMARY_CSV).sort_values("year").reset_index(drop=True)
+    _validate_columns(
+        heat,
+        ["year", "heat_health_af", "heat_health_an", "heat_labor_loss_pp"],
+        "heat-impact",
+    )
+
+    long_term, _ = load_preprocessed_datasets()
+    merged = heat.merge(long_term[["year", TARGET_COLUMN]], on="year", how="inner")
+    merged = merged.rename(columns={TARGET_COLUMN: "temperature_anomaly"})
+    merged = merged.dropna(
+        subset=["year", "temperature_anomaly", "heat_health_af", "heat_health_an", "heat_labor_loss_pp"]
+    ).reset_index(drop=True)
+    if merged.empty:
+        raise ValueError("Heat impact training data is empty after joining historical temperatures.")
+    return merged
+
+
+def load_food_agriculture_training_data() -> pd.DataFrame:
+    if not FOOD_AGRICULTURE_SUMMARY_CSV.exists():
+        raise FileNotFoundError(
+            f"Food/agriculture summary not found: {FOOD_AGRICULTURE_SUMMARY_CSV}. "
+            "Run python/app/preprocess_food_agriculture.py first."
+        )
+
+    food = pd.read_csv(FOOD_AGRICULTURE_SUMMARY_CSV).sort_values("year").reset_index(drop=True)
+    _validate_columns(
+        food,
+        ["year", "undernourishment_pct", "food_price_index", "agricultural_water_stress_pct"],
+        "food-agriculture",
+    )
+
+    long_term, _ = load_preprocessed_datasets()
+    merged = food.merge(long_term[["year", TARGET_COLUMN]], on="year", how="inner")
+    merged = merged.rename(columns={TARGET_COLUMN: "temperature_anomaly"})
+    merged = merged.dropna(
+        subset=[
+            "year",
+            "temperature_anomaly",
+            "undernourishment_pct",
+            "food_price_index",
+            "agricultural_water_stress_pct",
+        ]
+    ).reset_index(drop=True)
+    if merged.empty:
+        raise ValueError(
+            "Food/agriculture training data is empty after joining historical temperatures."
+        )
+    return merged
 
 
 def _validate_columns(frame: pd.DataFrame, required: list[str], label: str) -> None:
@@ -178,6 +253,152 @@ def fit_adjustment_model(
     )
     residual_std = float(evaluation_frame["mlr_residual"].std(ddof=1))
     return model, evaluation_frame, metrics, residual_std
+
+
+@lru_cache(maxsize=1)
+def load_heat_impact_models() -> dict[str, object]:
+    training = load_heat_impact_training_data()
+    fitted_models: dict[str, LinearRegression] = {}
+    fit_metrics: dict[str, dict[str, float]] = {}
+
+    X = training[HEAT_IMPACT_FEATURES]
+    for public_name, source_column in HEAT_IMPACT_TARGETS.items():
+        y = training[source_column]
+        model = LinearRegression()
+        model.fit(X, y)
+        predicted = pd.Series(model.predict(X), index=training.index)
+        fitted_models[public_name] = model
+        fit_metrics[public_name] = evaluate_predictions(y, predicted)
+
+    return {
+        "models": fitted_models,
+        "metrics": fit_metrics,
+        "year_range": {
+            "start": int(training["year"].min()),
+            "end": int(training["year"].max()),
+        },
+    }
+
+
+@lru_cache(maxsize=1)
+def load_food_agriculture_models() -> dict[str, object]:
+    training = load_food_agriculture_training_data()
+    fitted_models: dict[str, LinearRegression] = {}
+    fit_metrics: dict[str, dict[str, float]] = {}
+
+    X = training[FOOD_AGRICULTURE_FEATURES]
+    for public_name, source_column in FOOD_AGRICULTURE_TARGETS.items():
+        y = training[source_column]
+        model = LinearRegression()
+        model.fit(X, y)
+        predicted = pd.Series(model.predict(X), index=training.index)
+        fitted_models[public_name] = model
+        fit_metrics[public_name] = evaluate_predictions(y, predicted)
+
+    return {
+        "models": fitted_models,
+        "metrics": fit_metrics,
+        "year_range": {
+            "start": int(training["year"].min()),
+            "end": int(training["year"].max()),
+        },
+    }
+
+
+def _predict_heat_metric(
+    model: LinearRegression,
+    *,
+    year: int,
+    temperature_anomaly: float,
+) -> float:
+    frame = pd.DataFrame(
+        [{"temperature_anomaly": float(temperature_anomaly), "year": float(year)}]
+    )
+    return max(0.0, float(model.predict(frame)[0]))
+
+
+def predict_heat_impacts_for_temperature(
+    *,
+    year: int,
+    baseline_temperature: float,
+    scenario_temperature: float,
+) -> dict[str, object]:
+    artifacts = load_heat_impact_models()
+    models = artifacts["models"]
+    baseline: dict[str, float] = {}
+    scenario: dict[str, float] = {}
+    delta: dict[str, float] = {}
+
+    for metric_name, model in models.items():
+        baseline_value = _predict_heat_metric(
+            model,
+            year=year,
+            temperature_anomaly=baseline_temperature,
+        )
+        scenario_value = _predict_heat_metric(
+            model,
+            year=year,
+            temperature_anomaly=scenario_temperature,
+        )
+        baseline[metric_name] = baseline_value
+        scenario[metric_name] = scenario_value
+        delta[metric_name] = scenario_value - baseline_value
+
+    return {
+        "training_years": artifacts["year_range"],
+        "baseline": baseline,
+        "scenario": scenario,
+        "delta": delta,
+        "fit_metrics": artifacts["metrics"],
+    }
+
+
+def _predict_food_metric(
+    model: LinearRegression,
+    *,
+    year: int,
+    temperature_anomaly: float,
+) -> float:
+    frame = pd.DataFrame(
+        [{"temperature_anomaly": float(temperature_anomaly), "year": float(year)}]
+    )
+    return max(0.0, float(model.predict(frame)[0]))
+
+
+def predict_food_agriculture_impacts_for_temperature(
+    *,
+    year: int,
+    baseline_temperature: float,
+    scenario_temperature: float,
+) -> dict[str, object]:
+    artifacts = load_food_agriculture_models()
+    models = artifacts["models"]
+    baseline: dict[str, float] = {}
+    scenario: dict[str, float] = {}
+    delta: dict[str, float] = {}
+
+    for metric_name, model in models.items():
+        baseline_value = _predict_food_metric(
+            model,
+            year=year,
+            temperature_anomaly=baseline_temperature,
+        )
+        scenario_value = _predict_food_metric(
+            model,
+            year=year,
+            temperature_anomaly=scenario_temperature,
+        )
+        baseline[metric_name] = baseline_value
+        scenario[metric_name] = scenario_value
+        delta[metric_name] = scenario_value - baseline_value
+
+    return {
+        "training_years": artifacts["year_range"],
+        "baseline": baseline,
+        "scenario": scenario,
+        "delta": delta,
+        "fit_metrics": artifacts["metrics"],
+    }
 
 
 def fit_arima_model(temperature_history: pd.DataFrame):
@@ -519,6 +740,182 @@ def simulate_temperature_scenario(
             "feature_dynamics": feature_dynamics,
             "mlr_features": artifacts["mlr_features"],
             "last_observed_year": last_year,
+        },
+    }
+
+
+def _projection_rows_to_series(projection: pd.DataFrame) -> list[dict[str, float | int]]:
+    return [
+        {
+            "year": int(row["year"]),
+            "p05": float(row["p05"]),
+            "p50": float(row["p50"]),
+            "p95": float(row["p95"]),
+            "mean": float(row["mean"]),
+        }
+        for row in projection.to_dict(orient="records")
+    ]
+
+
+def _projection_target_year_summary(projection: pd.DataFrame) -> dict[str, float | int]:
+    selected_row = projection.iloc[-1]
+    return {
+        "year": int(selected_row["year"]),
+        "p05": float(selected_row["p05"]),
+        "p50": float(selected_row["p50"]),
+        "p95": float(selected_row["p95"]),
+        "mean": float(selected_row["mean"]),
+    }
+
+
+def _build_delta_projection(
+    baseline_projection: pd.DataFrame,
+    scenario_projection: pd.DataFrame,
+) -> pd.DataFrame:
+    merged = baseline_projection.merge(
+        scenario_projection,
+        on="year",
+        how="inner",
+        suffixes=("_baseline", "_scenario"),
+    )
+    if merged.empty:
+        raise ValueError("Unable to build comparison delta because no overlapping projection years were found.")
+
+    delta_projection = pd.DataFrame({"year": merged["year"].astype(int)})
+    for column in ["p05", "p50", "p95", "mean"]:
+        delta_projection[column] = merged[f"{column}_scenario"] - merged[f"{column}_baseline"]
+    return delta_projection
+
+
+def _range_change_flag(
+    baseline_summary: dict[str, float | int],
+    scenario_summary: dict[str, float | int],
+) -> str:
+    baseline_width = float(baseline_summary["p95"]) - float(baseline_summary["p05"])
+    scenario_width = float(scenario_summary["p95"]) - float(scenario_summary["p05"])
+    width_delta = scenario_width - baseline_width
+
+    if abs(width_delta) < 0.05:
+        return "similar"
+    if width_delta > 0:
+        return "wider"
+    return "narrower"
+
+
+def compare_temperature_scenarios(
+    *,
+    target_year: int,
+    co2_modifier: float = 0.0,
+    forest_loss_modifier: float = 0.0,
+    renewables_modifier: float = 0.0,
+    simulations: int = MONTE_CARLO_SIMULATIONS,
+    seed: int = MONTE_CARLO_SEED,
+) -> dict[str, object]:
+    artifacts = load_training_artifacts()
+    temperature_history = load_temperature_data()
+    last_year = int(temperature_history["year"].max())
+    if target_year <= last_year:
+        raise ValueError(
+            f"target_year must be greater than {last_year} because the future simulation starts after the last observed year."
+        )
+    if target_year > PROJECTION_END_YEAR:
+        raise ValueError(f"target_year must be less than or equal to {PROJECTION_END_YEAR}.")
+
+    baseline_modifiers = DEFAULT_SCENARIO_MODIFIERS.copy()
+    scenario_modifiers = {
+        "co2": float(co2_modifier),
+        "forest_loss": float(forest_loss_modifier),
+        "renewables": float(renewables_modifier),
+    }
+
+    baseline_projection, _, _ = run_monte_carlo_projection(
+        artifacts["base_model"],
+        artifacts["adjustment_model"],
+        artifacts["long_term"],
+        artifacts["short_term"],
+        float(artifacts["residual_std"]),
+        simulations=simulations,
+        seed=seed,
+        end_year=target_year,
+        scenario_modifiers=baseline_modifiers,
+    )
+    scenario_projection, _, _ = run_monte_carlo_projection(
+        artifacts["base_model"],
+        artifacts["adjustment_model"],
+        artifacts["long_term"],
+        artifacts["short_term"],
+        float(artifacts["residual_std"]),
+        simulations=simulations,
+        seed=seed,
+        end_year=target_year,
+        scenario_modifiers=scenario_modifiers,
+    )
+    if baseline_projection.empty or scenario_projection.empty:
+        raise ValueError("No projection rows were generated for the requested target year.")
+
+    baseline_target = _projection_target_year_summary(baseline_projection)
+    scenario_target = _projection_target_year_summary(scenario_projection)
+    delta_projection = _build_delta_projection(baseline_projection, scenario_projection)
+    delta_target = _projection_target_year_summary(delta_projection)
+
+    meaningful_threshold = 0.05
+    delta_median = float(delta_target["p50"])
+    if abs(delta_median) < meaningful_threshold:
+        direction = "negligible"
+    elif delta_median > 0:
+        direction = "warmer"
+    else:
+        direction = "cooler"
+
+    heat_impact = predict_heat_impacts_for_temperature(
+        year=int(target_year),
+        baseline_temperature=float(baseline_target["p50"]),
+        scenario_temperature=float(scenario_target["p50"]),
+    )
+    food_agriculture_impact = predict_food_agriculture_impacts_for_temperature(
+        year=int(target_year),
+        baseline_temperature=float(baseline_target["p50"]),
+        scenario_temperature=float(scenario_target["p50"]),
+    )
+
+    return {
+        "target": TARGET_COLUMN,
+        "request": {
+            "target_year": int(target_year),
+            "scenario_modifiers": scenario_modifiers,
+            "developer_overrides": {
+                "simulations": int(simulations),
+                "seed": int(seed),
+            },
+        },
+        "baseline": {
+            "label": "default_pathway",
+            "target_year": baseline_target,
+            "series": _projection_rows_to_series(baseline_projection),
+        },
+        "scenario": {
+            "label": "user_scenario",
+            "target_year": scenario_target,
+            "series": _projection_rows_to_series(scenario_projection),
+        },
+        "delta": {
+            "target_year": delta_target,
+            "series": _projection_rows_to_series(delta_projection),
+        },
+        "projection_start_year": last_year + 1,
+        "historical_window": {
+            "start_year": int(temperature_history["year"].min()),
+            "end_year": last_year,
+        },
+        "interpretation_flags": {
+            "direction": direction,
+            "meaningful_change": abs(delta_median) >= meaningful_threshold,
+            "range_change": _range_change_flag(baseline_target, scenario_target),
+        },
+        "heat_impact": heat_impact,
+        "food_agriculture_impact": food_agriculture_impact,
+        "run_metadata": {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         },
     }
 

@@ -405,3 +405,166 @@ def simulate_temperature_scenario(
             "last_observed_year": last_year,
         },
     }
+
+
+def _projection_rows_to_series(projection: pd.DataFrame) -> list[dict[str, float | int]]:
+    return [
+        {
+            "year": int(row["year"]),
+            "p05": float(row["p05"]),
+            "p50": float(row["p50"]),
+            "p95": float(row["p95"]),
+            "mean": float(row["mean"]),
+        }
+        for row in projection.to_dict(orient="records")
+    ]
+
+
+def _projection_target_year_summary(projection: pd.DataFrame) -> dict[str, float | int]:
+    selected_row = projection.iloc[-1]
+    return {
+        "year": int(selected_row["year"]),
+        "p05": float(selected_row["p05"]),
+        "p50": float(selected_row["p50"]),
+        "p95": float(selected_row["p95"]),
+        "mean": float(selected_row["mean"]),
+    }
+
+
+def _build_delta_projection(
+    baseline_projection: pd.DataFrame,
+    scenario_projection: pd.DataFrame,
+) -> pd.DataFrame:
+    merged = baseline_projection.merge(
+        scenario_projection,
+        on="year",
+        how="inner",
+        suffixes=("_baseline", "_scenario"),
+    )
+    if merged.empty:
+        raise ValueError("Unable to build comparison delta because no overlapping projection years were found.")
+
+    delta_projection = pd.DataFrame({"year": merged["year"].astype(int)})
+    for column in ["p05", "p50", "p95", "mean"]:
+        delta_projection[column] = merged[f"{column}_scenario"] - merged[f"{column}_baseline"]
+    return delta_projection
+
+
+def _range_change_flag(
+    baseline_summary: dict[str, float | int],
+    scenario_summary: dict[str, float | int],
+) -> str:
+    baseline_width = float(baseline_summary["p95"]) - float(baseline_summary["p05"])
+    scenario_width = float(scenario_summary["p95"]) - float(scenario_summary["p05"])
+    width_delta = scenario_width - baseline_width
+
+    if abs(width_delta) < 0.05:
+        return "similar"
+    if width_delta > 0:
+        return "wider"
+    return "narrower"
+
+
+def compare_temperature_scenarios(
+    *,
+    target_year: int,
+    co2_modifier: float = 0.0,
+    forest_loss_modifier: float = 0.0,
+    renewables_modifier: float = 0.0,
+    simulations: int = MONTE_CARLO_SIMULATIONS,
+    seed: int = MONTE_CARLO_SEED,
+) -> dict[str, object]:
+    artifacts = load_training_artifacts()
+    temperature_history = load_temperature_data()
+    last_year = int(temperature_history["year"].max())
+    if target_year <= last_year:
+        raise ValueError(
+            f"target_year must be greater than {last_year} because the future simulation starts after the last observed year."
+        )
+    if target_year > PROJECTION_END_YEAR:
+        raise ValueError(f"target_year must be less than or equal to {PROJECTION_END_YEAR}.")
+
+    baseline_modifiers = DEFAULT_SCENARIO_MODIFIERS.copy()
+    scenario_modifiers = {
+        "co2": float(co2_modifier),
+        "forest_loss": float(forest_loss_modifier),
+        "renewables": float(renewables_modifier),
+    }
+
+    baseline_projection, _, _ = run_monte_carlo_projection(
+        artifacts["base_model"],
+        artifacts["adjustment_model"],
+        artifacts["long_term"],
+        artifacts["short_term"],
+        float(artifacts["residual_std"]),
+        simulations=simulations,
+        seed=seed,
+        end_year=target_year,
+        scenario_modifiers=baseline_modifiers,
+    )
+    scenario_projection, _, _ = run_monte_carlo_projection(
+        artifacts["base_model"],
+        artifacts["adjustment_model"],
+        artifacts["long_term"],
+        artifacts["short_term"],
+        float(artifacts["residual_std"]),
+        simulations=simulations,
+        seed=seed,
+        end_year=target_year,
+        scenario_modifiers=scenario_modifiers,
+    )
+    if baseline_projection.empty or scenario_projection.empty:
+        raise ValueError("No projection rows were generated for the requested target year.")
+
+    baseline_target = _projection_target_year_summary(baseline_projection)
+    scenario_target = _projection_target_year_summary(scenario_projection)
+    delta_projection = _build_delta_projection(baseline_projection, scenario_projection)
+    delta_target = _projection_target_year_summary(delta_projection)
+
+    meaningful_threshold = 0.05
+    delta_median = float(delta_target["p50"])
+    if abs(delta_median) < meaningful_threshold:
+        direction = "negligible"
+    elif delta_median > 0:
+        direction = "warmer"
+    else:
+        direction = "cooler"
+
+    return {
+        "target": TARGET_COLUMN,
+        "request": {
+            "target_year": int(target_year),
+            "scenario_modifiers": scenario_modifiers,
+            "developer_overrides": {
+                "simulations": int(simulations),
+                "seed": int(seed),
+            },
+        },
+        "baseline": {
+            "label": "default_pathway",
+            "target_year": baseline_target,
+            "series": _projection_rows_to_series(baseline_projection),
+        },
+        "scenario": {
+            "label": "user_scenario",
+            "target_year": scenario_target,
+            "series": _projection_rows_to_series(scenario_projection),
+        },
+        "delta": {
+            "target_year": delta_target,
+            "series": _projection_rows_to_series(delta_projection),
+        },
+        "projection_start_year": last_year + 1,
+        "historical_window": {
+            "start_year": int(temperature_history["year"].min()),
+            "end_year": last_year,
+        },
+        "interpretation_flags": {
+            "direction": direction,
+            "meaningful_change": abs(delta_median) >= meaningful_threshold,
+            "range_change": _range_change_flag(baseline_target, scenario_target),
+        },
+        "run_metadata": {
+            "generated_at": pd.Timestamp.utcnow().isoformat(),
+        },
+    }

@@ -1,0 +1,12 @@
+{
+  "country": "Philippines",
+  "iso3c": "PHL",
+  "world_region": "SE Asia",
+  "latest_global_sea_level_year": 2020,
+  "latest_global_sea_level_average": 65.9997375,
+  "latest_antarctic_year": 2020,
+  "latest_antarctic_mass_balance": -2539.055,
+  "floodpop_ghsl_tot": 3949961.247,
+  "floodpop_hrsl_tot": 3333992.486,
+  "fpop_rate_reference": 0.979899246
+}

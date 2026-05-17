@@ -1,0 +1,156 @@
+[
+  {
+    "year": 2000,
+    "outdoor_workers_pct": 41.75956795176382,
+    "heat_labor_loss_pp": 137.80203563542045,
+    "heat_health_af": 0.56,
+    "heat_health_an": 278617
+  },
+  {
+    "year": 2001,
+    "outdoor_workers_pct": 41.014816115989724,
+    "heat_labor_loss_pp": 138.37783320483118,
+    "heat_health_af": 0.57,
+    "heat_health_an": 287022
+  },
+  {
+    "year": 2002,
+    "outdoor_workers_pct": 40.285148327854195,
+    "heat_labor_loss_pp": 145.16433709104842,
+    "heat_health_af": 0.79,
+    "heat_health_an": 402404
+  },
+  {
+    "year": 2003,
+    "outdoor_workers_pct": 39.540473912089745,
+    "heat_labor_loss_pp": 145.01256939193874,
+    "heat_health_af": 0.9,
+    "heat_health_an": 461538
+  },
+  {
+    "year": 2004,
+    "outdoor_workers_pct": 38.79797042227195,
+    "heat_labor_loss_pp": 138.73667305556424,
+    "heat_health_af": 0.64,
+    "heat_health_an": 329810
+  },
+  {
+    "year": 2005,
+    "outdoor_workers_pct": 38.04843025997812,
+    "heat_labor_loss_pp": 144.73177306275278,
+    "heat_health_af": 1.0,
+    "heat_health_an": 516926
+  },
+  {
+    "year": 2006,
+    "outdoor_workers_pct": 37.328352240481465,
+    "heat_labor_loss_pp": 143.00806582156818,
+    "heat_health_af": 0.76,
+    "heat_health_an": 390253
+  },
+  {
+    "year": 2007,
+    "outdoor_workers_pct": 36.632922927409474,
+    "heat_labor_loss_pp": 140.3363830317752,
+    "heat_health_af": 0.83,
+    "heat_health_an": 425991
+  },
+  {
+    "year": 2008,
+    "outdoor_workers_pct": 35.92927481406309,
+    "heat_labor_loss_pp": 129.38959259759298,
+    "heat_health_af": 0.56,
+    "heat_health_an": 294318
+  },
+  {
+    "year": 2009,
+    "outdoor_workers_pct": 35.22538440583849,
+    "heat_labor_loss_pp": 144.51916956923938,
+    "heat_health_af": 0.87,
+    "heat_health_an": 455614
+  },
+  {
+    "year": 2010,
+    "outdoor_workers_pct": 34.532665145592034,
+    "heat_labor_loss_pp": 159.48928880493318,
+    "heat_health_af": 1.37,
+    "heat_health_an": 721588
+  },
+  {
+    "year": 2011,
+    "outdoor_workers_pct": 33.87317429631514,
+    "heat_labor_loss_pp": 132.92715912770183,
+    "heat_health_af": 0.68,
+    "heat_health_an": 359081
+  },
+  {
+    "year": 2012,
+    "outdoor_workers_pct": 33.19212779928355,
+    "heat_labor_loss_pp": 137.50419192692746,
+    "heat_health_af": 0.95,
+    "heat_health_an": 504462
+  },
+  {
+    "year": 2013,
+    "outdoor_workers_pct": 32.46634436871928,
+    "heat_labor_loss_pp": 139.53496335406786,
+    "heat_health_af": 0.86,
+    "heat_health_an": 458251
+  },
+  {
+    "year": 2014,
+    "outdoor_workers_pct": 31.788198738384704,
+    "heat_labor_loss_pp": 138.81501902483333,
+    "heat_health_af": 0.83,
+    "heat_health_an": 448321
+  },
+  {
+    "year": 2015,
+    "outdoor_workers_pct": 31.093468739518254,
+    "heat_labor_loss_pp": 140.98321930427642,
+    "heat_health_af": 0.94,
+    "heat_health_an": 509489
+  },
+  {
+    "year": 2016,
+    "outdoor_workers_pct": 30.391836477197113,
+    "heat_labor_loss_pp": 155.9120215531156,
+    "heat_health_af": 1.23,
+    "heat_health_an": 676006
+  },
+  {
+    "year": 2017,
+    "outdoor_workers_pct": 29.680426707064022,
+    "heat_labor_loss_pp": 148.91503766657078,
+    "heat_health_af": 0.99,
+    "heat_health_an": 551282
+  },
+  {
+    "year": 2018,
+    "outdoor_workers_pct": 28.988821657844642,
+    "heat_labor_loss_pp": 141.27296881843486,
+    "heat_health_af": 0.9,
+    "heat_health_an": 507062
+  },
+  {
+    "year": 2019,
+    "outdoor_workers_pct": 28.289196842261067,
+    "heat_labor_loss_pp": 149.86363182098142,
+    "heat_health_af": 1.24,
+    "heat_health_an": 701303
+  },
+  {
+    "year": 2020,
+    "outdoor_workers_pct": 27.657373131333912,
+    "heat_labor_loss_pp": 149.91347804767474,
+    "heat_health_af": 0.86,
+    "heat_health_an": 540304
+  },
+  {
+    "year": 2021,
+    "outdoor_workers_pct": 26.966596107903186,
+    "heat_labor_loss_pp": 145.1167517791747,
+    "heat_health_af": 0.83,
+    "heat_health_an": 558304
+  }
+]

@@ -3,7 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Temperature 2100",
-  description: "Interactive climate future simulator powered by exported model data.",
+  description:
+    "Compare a draft climate scenario against a default pathway and see its impact over time.",
 };
 
 export default function RootLayout({
