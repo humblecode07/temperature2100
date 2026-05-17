@@ -271,7 +271,6 @@ export function CoastalImpacts({ result }: Props) {
     const delta = scenarioMedian - baselineMedian;
     const risk = riskMeta(scenarioMedian);
     const improvement = improvementMeta(delta);
-    const riskPercent = Math.round(risk.percent);
     return {
       targetYear,
       baselineMedian,
@@ -280,7 +279,6 @@ export function CoastalImpacts({ result }: Props) {
       scenarioHigh,
       delta,
       risk,
-      riskPercent,
       improvement,
       location: `${lowerMedianRow.lon}, ${lowerMedianRow.lat}`,
     };
@@ -319,7 +317,7 @@ export function CoastalImpacts({ result }: Props) {
         <div className="impact-metric-grid">
           <div className="impact-metric-tile coast">
             <strong>{formatCm(content.scenarioMedian)}</strong>
-            <span>Estimated local sea-level rise</span>
+            <span>Estimated local sea-level rise · baseline {formatCm(content.baselineMedian)}</span>
           </div>
           <div className="impact-metric-tile coast">
             <strong>{content.improvement.label}</strong>
@@ -358,15 +356,6 @@ export function CoastalImpacts({ result }: Props) {
           </div>
         ) : null}
 
-        <div className="impact-risk-row">
-          <div className="impact-risk-labels">
-            <span>Coastal pressure</span>
-            <span>{content.riskPercent}%</span>
-          </div>
-          <div className="impact-risk-track" aria-hidden="true">
-            <span className="impact-risk-fill coast-fill" style={{ width: `${content.risk.percent}%` }} />
-          </div>
-        </div>
       </article>
     </section>
   );

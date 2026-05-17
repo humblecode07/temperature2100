@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { runComparison } from "./_features/comparison/api";
+import AboutModal from "./_features/about/AboutModal";
 import { ComparisonCharts } from "./_features/comparison/ComparisonCharts";
 import { ComparisonHero } from "./_features/comparison/ComparisonHero";
 import { ComparisonInterpretation } from "./_features/comparison/ComparisonInterpretation";
@@ -38,6 +39,7 @@ export default function Home() {
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [presetFeedback, setPresetFeedback] = useState<string | null>(null);
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -191,8 +193,34 @@ export default function Home() {
     <main className="compare-page">
       <section className="page-intro">
         <div className="intro-copy">
-          <p className="eyebrow">Temperature 2100</p>
-          <h1>Temperature 2100</h1>
+          <div className="intro-header-row">
+            <div>
+              <p className="eyebrow">Temperature 2100</p>
+              <h1>Temperature 2100</h1>
+            </div>
+            <button
+              className="about-button"
+              onClick={() => setIsAboutOpen(true)}
+              type="button"
+              aria-label="About this project"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 18 18"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="9" cy="9" r="7" />
+                <line x1="9" y1="6" x2="9" y2="6" />
+                <path d="M9 9v4" />
+              </svg>
+              <span>About</span>
+            </button>
+          </div>
           <p className="intro-kicker">See the impact of climate choices</p>
           <p className="lede">
             Build one scenario against a locked baseline pathway, then compare the temperature gap
@@ -258,6 +286,7 @@ export default function Home() {
           <DataSourcesSection />
         </div>
       </section>
+      <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
     </main>
   );
 }

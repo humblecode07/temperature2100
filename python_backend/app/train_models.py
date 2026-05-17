@@ -365,6 +365,30 @@ def _predict_food_metric(
     return max(0.0, float(model.predict(frame)[0]))
 
 
+def _predict_food_price_index_with_baseline_anchor(
+    model: LinearRegression,
+    *,
+    year: int,
+    baseline_temperature: float,
+    scenario_temperature: float,
+) -> tuple[float, float]:
+    baseline_value = _predict_food_metric(
+        model,
+        year=year,
+        temperature_anomaly=baseline_temperature,
+    )
+    temp_delta = float(scenario_temperature) - float(baseline_temperature)
+    temperature_coef = 0.0
+    if hasattr(model, "coef_") and len(model.coef_) >= 1:
+        temperature_coef = float(abs(model.coef_[0]))
+
+    scenario_value = max(
+        0.0,
+        baseline_value + (temperature_coef * temp_delta),
+    )
+    return baseline_value, scenario_value
+
+
 def predict_food_agriculture_impacts_for_temperature(
     *,
     year: int,
@@ -378,16 +402,24 @@ def predict_food_agriculture_impacts_for_temperature(
     delta: dict[str, float] = {}
 
     for metric_name, model in models.items():
-        baseline_value = _predict_food_metric(
-            model,
-            year=year,
-            temperature_anomaly=baseline_temperature,
-        )
-        scenario_value = _predict_food_metric(
-            model,
-            year=year,
-            temperature_anomaly=scenario_temperature,
-        )
+        if metric_name == "food_price_index":
+            baseline_value, scenario_value = _predict_food_price_index_with_baseline_anchor(
+                model,
+                year=year,
+                baseline_temperature=baseline_temperature,
+                scenario_temperature=scenario_temperature,
+            )
+        else:
+            baseline_value = _predict_food_metric(
+                model,
+                year=year,
+                temperature_anomaly=baseline_temperature,
+            )
+            scenario_value = _predict_food_metric(
+                model,
+                year=year,
+                temperature_anomaly=scenario_temperature,
+            )
         baseline[metric_name] = baseline_value
         scenario[metric_name] = scenario_value
         delta[metric_name] = scenario_value - baseline_value

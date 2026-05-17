@@ -83,31 +83,33 @@ export function EcosystemImpacts({ result }: Props) {
   const year = result.request.target_year;
   const warming = result.scenario.target_year.p50;
   const risk = ecosystemRiskMeta(warming);
-  const riskPercent = Math.round(risk.percent);
+  const { scenario, baseline, delta } = impact;
 
-  const { scenario, delta, training_years } = impact;
-
-  const displaySpecies = impact.species_threatened.filter((s) =>
-    SPECIES_DISPLAY.includes(s.entity),
+  const displaySpecies = impact.species_threatened.filter((species) =>
+    SPECIES_DISPLAY.includes(species.entity),
   );
 
   const rliDelta = delta.red_list_index;
   const phDelta = delta.ocean_ph;
   const coralDhwVal = scenario.coral_dhw;
-  const coralbaaVal = scenario.coral_baa_max;
+  const coralBaaVal = scenario.coral_baa_max;
   const treeLossDelta = delta.tree_cover_loss_ha;
   const fishDelta = delta.fish_capture_tonnes;
   const burnedVal = scenario.burned_total_ha;
 
   const bleachingLabel =
-    coralbaaVal < 1 ? "No stress" :
-    coralbaaVal < 2 ? "Watch" :
-    coralbaaVal < 3 ? "Warning" :
-    coralbaaVal < 4 ? "Alert Level 1" : "Alert Level 2";
+    coralBaaVal < 1
+      ? "No stress"
+      : coralBaaVal < 2
+        ? "Watch"
+        : coralBaaVal < 3
+          ? "Warning"
+          : coralBaaVal < 4
+            ? "Alert Level 1"
+            : "Alert Level 2";
 
   return (
     <section className="support-card impacts-card impacts-card-visual eco-card">
-      {/* Top banner */}
       <div className="impacts-topline">
         <div className="impacts-temperature eco">{risk.label}</div>
         <div className="impacts-top-copy">
@@ -117,7 +119,6 @@ export function EcosystemImpacts({ result }: Props) {
         </div>
       </div>
 
-      {/* Biodiversity & Ocean section */}
       <article className="impact-focus-card">
         <div className="impact-focus-header">
           <div>
@@ -130,33 +131,35 @@ export function EcosystemImpacts({ result }: Props) {
         <div className="impact-metric-grid eco">
           <div className="impact-metric-tile eco">
             <strong>{scenario.red_list_index.toFixed(3)}</strong>
-            <span>Red List Index</span>
+            <span>Red List Index · baseline {baseline.red_list_index.toFixed(3)}</span>
             <em className={rliDelta < 0 ? "eco-delta negative" : "eco-delta positive"}>
-              {formatSigned(rliDelta, (v) => Math.abs(v).toFixed(3))} vs baseline
+              {formatSigned(rliDelta, (value) => value.toFixed(3))} vs baseline
             </em>
           </div>
           <div className="impact-metric-tile eco">
             <strong>{scenario.ocean_ph.toFixed(3)}</strong>
-            <span>Ocean pH</span>
+            <span>Ocean pH · baseline {baseline.ocean_ph.toFixed(3)}</span>
             <em className={phDelta < 0 ? "eco-delta negative" : "eco-delta positive"}>
-              {formatSigned(phDelta, (v) => Math.abs(v).toFixed(3))} vs baseline
+              {formatSigned(phDelta, (value) => value.toFixed(3))} vs baseline
             </em>
           </div>
           <div className="impact-metric-tile eco">
             <strong>{formatLargeNumber(scenario.tree_cover_loss_ha)} ha</strong>
-            <span>Tree cover loss</span>
+            <span>Tree cover loss · baseline {formatLargeNumber(baseline.tree_cover_loss_ha)} ha</span>
             <em className={treeLossDelta > 0 ? "eco-delta negative" : "eco-delta positive"}>
               {formatSigned(treeLossDelta, formatLargeNumber)} ha vs baseline
             </em>
           </div>
           <div className="impact-metric-tile eco">
             <strong>{formatLargeNumber(burnedVal)} ha</strong>
-            <span>Wildfire burned area</span>
-            <em className="eco-delta neutral">Global annual total</em>
+            <span>Wildfire burned area · baseline {formatLargeNumber(baseline.burned_total_ha)} ha</span>
+            <em className="eco-delta neutral">
+              {formatSigned(delta.burned_total_ha, formatLargeNumber)} ha vs baseline
+            </em>
           </div>
           <div className="impact-metric-tile eco">
             <strong>{formatLargeNumber(scenario.fish_capture_tonnes)} t</strong>
-            <span>Fish capture (global)</span>
+            <span>Fish capture (global) · baseline {formatLargeNumber(baseline.fish_capture_tonnes)} t</span>
             <em className={fishDelta < 0 ? "eco-delta negative" : "eco-delta positive"}>
               {formatSigned(fishDelta, formatLargeNumber)} t vs baseline
             </em>
@@ -164,25 +167,21 @@ export function EcosystemImpacts({ result }: Props) {
         </div>
 
         <p className="impact-body">{risk.details}</p>
-
-        <div className="impact-reference-note">
-          Estimates use historical ecosystem–temperature relationships from {training_years.start}–
-          {training_years.end}. Red List Index (R²=0.99), Ocean pH (R²=0.96), and Fish Capture
-          (R²=0.91) have strong fits. Burned area (R²=0.57) and coral DHW (R²=0.58) have moderate
-          fits and should be read directionally.
-        </div>
       </article>
 
-      {/* Coral Reef section — Philippines specific */}
       <article className="impact-focus-card eco-coral">
         <div className="impact-focus-header">
           <div>
-            <h4>🇵🇭 Coral Reef Thermal Stress</h4>
+            <h4>Coral Reef Thermal Stress</h4>
             <p className="impact-subtitle">
               Philippines · Central, Northern &amp; Western stations · NOAA Coral Reef Watch
             </p>
           </div>
-          <span className={`impact-risk-badge ${coralbaaVal >= 3 ? "eco-alert" : coralbaaVal >= 1 ? "eco" : "eco-ok"}`}>
+          <span
+            className={`impact-risk-badge ${
+              coralBaaVal >= 3 ? "eco-alert" : coralBaaVal >= 1 ? "eco" : "eco-ok"
+            }`}
+          >
             {bleachingLabel}
           </span>
         </div>
@@ -190,16 +189,18 @@ export function EcosystemImpacts({ result }: Props) {
         <div className="impact-metric-grid eco">
           <div className="impact-metric-tile eco coral">
             <strong>{coralDhwVal.toFixed(1)} °C·wk</strong>
-            <span>Peak Degree Heating Weeks</span>
+            <span>Peak Degree Heating Weeks · baseline {baseline.coral_dhw.toFixed(1)} °C·wk</span>
             <em className={delta.coral_dhw > 0 ? "eco-delta negative" : "eco-delta positive"}>
-              {formatSigned(delta.coral_dhw, (v) => Math.abs(v).toFixed(2))} °C·wk vs baseline
+              {formatSigned(delta.coral_dhw, (value) => value.toFixed(2))} °C·wk vs baseline
             </em>
           </div>
           <div className="impact-metric-tile eco coral">
-            <strong>{coralbaaVal.toFixed(1)}</strong>
-            <span>Bleaching Alert Level (0–4)</span>
-            <em className={delta.coral_baa_max > 0 ? "eco-delta negative" : "eco-delta positive"}>
-              {formatSigned(delta.coral_baa_max, (v) => Math.abs(v).toFixed(2))} vs baseline
+            <strong>{coralBaaVal.toFixed(1)}</strong>
+            <span>Bleaching Alert Level (0–4) · baseline {baseline.coral_baa_max.toFixed(1)}</span>
+            <em
+              className={delta.coral_baa_max > 0 ? "eco-delta negative" : "eco-delta positive"}
+            >
+              {formatSigned(delta.coral_baa_max, (value) => value.toFixed(2))} vs baseline
             </em>
           </div>
         </div>
@@ -211,12 +212,9 @@ export function EcosystemImpacts({ result }: Props) {
           <span className="eco-bleach-item alert">8+ Severe</span>
         </div>
 
-        <div className="impact-reference-note eco-disclaimer">
-          ⚠️ {impact.disclaimer}
-        </div>
+        <div className="impact-reference-note eco-disclaimer">{impact.disclaimer}</div>
       </article>
 
-      {/* Species threatened reference */}
       <article className="impact-focus-card eco-species">
         <div className="impact-focus-header">
           <div>
@@ -227,10 +225,10 @@ export function EcosystemImpacts({ result }: Props) {
         </div>
 
         <div className="eco-species-grid">
-          {displaySpecies.map((s) => (
-            <div key={s.entity} className="eco-species-tile">
-              <strong>{s.threatened_species.toLocaleString()}</strong>
-              <span>{s.entity}</span>
+          {displaySpecies.map((species) => (
+            <div key={species.entity} className="eco-species-tile">
+              <strong>{species.threatened_species.toLocaleString()}</strong>
+              <span>{species.entity}</span>
             </div>
           ))}
         </div>
@@ -240,17 +238,6 @@ export function EcosystemImpacts({ result }: Props) {
           by this model. They provide context for the scale of current biodiversity stress.
         </div>
       </article>
-
-      {/* Risk bar */}
-      <div className="impact-risk-row">
-        <div className="impact-risk-labels">
-          <span>Ecosystem risk level</span>
-          <span>{riskPercent}%</span>
-        </div>
-        <div className="impact-risk-track" aria-hidden="true">
-          <span className="impact-risk-fill eco" style={{ width: `${risk.percent}%` }} />
-        </div>
-      </div>
     </section>
   );
 }

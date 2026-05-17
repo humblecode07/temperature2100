@@ -113,6 +113,28 @@ const ECOSYSTEM_IMPACT_MODEL = {
   },
 } as const;
 
+const ECOSYSTEM_CONSTRAINTS = {
+  red_list_index: { min: 0, max: 1, direction: -1 },
+  ocean_ph: { min: 7, max: 8.4, direction: -1 },
+  tree_cover_loss_ha: { min: 0, max: null, direction: 1 },
+  burned_total_ha: { min: 0, max: null, direction: 1 },
+  fish_capture_tonnes: { min: 0, max: null, direction: -1 },
+  coral_dhw: { min: 0, max: null, direction: 1 },
+  coral_baa_max: { min: 0, max: 5, direction: 1 },
+} as const;
+
+const ECOSYSTEM_REFERENCE_POINTS = {
+  red_list_index: { year: 2024, temperature: 1.28, value: 0.72 },
+  ocean_ph: { year: 2024, temperature: 1.28, value: 8.040731428571428 },
+  tree_cover_loss_ha: { year: 2024, temperature: 1.28, value: 29559676 },
+  // Burned-area 2024 is incomplete in the source summary and shows 0. Use the
+  // latest valid observed year instead of anchoring the baseline to bad input.
+  burned_total_ha: { year: 2023, temperature: 1.17, value: 383441203.953 },
+  fish_capture_tonnes: { year: 2023, temperature: 1.17, value: 91737637.917 },
+  coral_dhw: { year: 2024, temperature: 1.28, value: 15.034266666666667 },
+  coral_baa_max: { year: 2024, temperature: 1.28, value: 4.0 },
+} as const;
+
 async function postComparison(url: string, request: ComparisonRequest) {
   return fetch(url, {
     method: "POST",
@@ -123,19 +145,162 @@ async function postComparison(url: string, request: ComparisonRequest) {
   });
 }
 
-function predictEcosystemMetric(
-  metric: keyof typeof ECOSYSTEM_IMPACT_MODEL.params,
-  temperature: number,
+function clampEcosystemMetric(
+  metric: keyof typeof ECOSYSTEM_CONSTRAINTS,
+  value: number,
+) {
+  const { min, max } = ECOSYSTEM_CONSTRAINTS[metric];
+  const lowerClamped = Math.max(min, value);
+  return max === null ? lowerClamped : Math.min(max, lowerClamped);
+}
+
+function projectBaselineEcosystemMetric(
+  metric: keyof typeof ECOSYSTEM_REFERENCE_POINTS,
+  baselineTemp: number,
   year: number,
 ) {
-  const params = ECOSYSTEM_IMPACT_MODEL.params[metric];
-  return params.intercept + params.temperature_anomaly * temperature + params.year * year;
+  const reference = ECOSYSTEM_REFERENCE_POINTS[metric];
+  const yearOffset = Math.max(0, year - reference.year);
+  const warmingOffset = Math.max(0, baselineTemp - reference.temperature);
+
+  switch (metric) {
+    case "red_list_index":
+      return clampEcosystemMetric(
+        metric,
+        reference.value - 0.00045 * yearOffset - 0.035 * warmingOffset,
+      );
+    case "ocean_ph":
+      return clampEcosystemMetric(
+        metric,
+        reference.value - 0.00045 * yearOffset - 0.03 * warmingOffset,
+      );
+    case "tree_cover_loss_ha":
+      return clampEcosystemMetric(
+        metric,
+        reference.value * (1 + 0.012 * yearOffset + 0.28 * warmingOffset),
+      );
+    case "burned_total_ha":
+      return clampEcosystemMetric(
+        metric,
+        reference.value * (1 + 0.0035 * yearOffset + 0.22 * warmingOffset),
+      );
+    case "fish_capture_tonnes":
+      return clampEcosystemMetric(
+        metric,
+        reference.value *
+          Math.max(0.2, 1 - 0.0012 * yearOffset - 0.12 * warmingOffset),
+      );
+    case "coral_dhw":
+      return clampEcosystemMetric(
+        metric,
+        reference.value + 0.08 * yearOffset + 2.5 * warmingOffset,
+      );
+    case "coral_baa_max":
+      return clampEcosystemMetric(
+        metric,
+        reference.value + 0.01 * yearOffset + 0.35 * warmingOffset,
+      );
+  }
+}
+
+function projectScenarioEcosystemMetric(
+  metric: keyof typeof ECOSYSTEM_REFERENCE_POINTS,
+  baselineValue: number,
+  baselineTemp: number,
+  scenarioTemp: number,
+  modifiers: ComparisonRequest["scenario_modifiers"],
+) {
+  const tempDelta = scenarioTemp - baselineTemp;
+  const co2Pressure = Math.max(0, modifiers.co2) / 100;
+  const forestPressure = Math.max(0, modifiers.forest_loss) / 100;
+  const renewableRelief = Math.max(0, modifiers.renewables) / 100;
+  const renewablePenalty = Math.max(0, -modifiers.renewables) / 100;
+
+  switch (metric) {
+    case "red_list_index":
+      return clampEcosystemMetric(
+        metric,
+        baselineValue -
+          0.02 * tempDelta -
+          0.012 * forestPressure -
+          0.004 * co2Pressure +
+          0.003 * renewableRelief -
+          0.001 * renewablePenalty,
+      );
+    case "ocean_ph":
+      return clampEcosystemMetric(
+        metric,
+        baselineValue -
+          0.012 * tempDelta -
+          0.018 * co2Pressure -
+          0.003 * forestPressure +
+          0.004 * renewableRelief -
+          0.0015 * renewablePenalty,
+      );
+    case "tree_cover_loss_ha":
+      return clampEcosystemMetric(
+        metric,
+        baselineValue *
+          (1 +
+            0.12 * tempDelta +
+            0.25 * forestPressure +
+            0.05 * co2Pressure -
+            0.04 * renewableRelief +
+            0.02 * renewablePenalty),
+      );
+    case "burned_total_ha":
+      return clampEcosystemMetric(
+        metric,
+        baselineValue *
+          (1 +
+            0.15 * tempDelta +
+            0.18 * forestPressure +
+            0.05 * co2Pressure -
+            0.03 * renewableRelief +
+            0.02 * renewablePenalty),
+      );
+    case "fish_capture_tonnes":
+      return clampEcosystemMetric(
+        metric,
+        baselineValue *
+          Math.max(
+            0.2,
+            1 -
+              0.1 * tempDelta -
+              0.08 * co2Pressure -
+              0.04 * forestPressure +
+              0.03 * renewableRelief -
+              0.01 * renewablePenalty,
+          ),
+      );
+    case "coral_dhw":
+      return clampEcosystemMetric(
+        metric,
+        baselineValue +
+          3.0 * tempDelta +
+          1.4 * co2Pressure +
+          0.35 * forestPressure -
+          0.5 * renewableRelief +
+          0.15 * renewablePenalty,
+      );
+    case "coral_baa_max":
+      return clampEcosystemMetric(
+        metric,
+        baselineValue +
+          0.45 * tempDelta +
+          0.18 * co2Pressure +
+          0.05 * forestPressure -
+          0.06 * renewableRelief +
+          0.02 * renewablePenalty,
+      );
+  }
 }
 
 function buildEcosystemImpact(
   baselineTemp: number,
   scenarioTemp: number,
   targetYear: number,
+  modifiers: ComparisonRequest["scenario_modifiers"],
 ) {
   const metrics = [
     "red_list_index",
@@ -148,11 +313,23 @@ function buildEcosystemImpact(
   ] as const;
 
   const baseline = Object.fromEntries(
-    metrics.map((m) => [m, predictEcosystemMetric(m, baselineTemp, targetYear)]),
+    metrics.map((metric) => [
+      metric,
+      projectBaselineEcosystemMetric(metric, baselineTemp, targetYear),
+    ]),
   ) as Record<typeof metrics[number], number>;
 
   const scenario = Object.fromEntries(
-    metrics.map((m) => [m, predictEcosystemMetric(m, scenarioTemp, targetYear)]),
+    metrics.map((metric) => [
+      metric,
+      projectScenarioEcosystemMetric(
+        metric,
+        baseline[metric],
+        baselineTemp,
+        scenarioTemp,
+        modifiers,
+      ),
+    ]),
   ) as Record<typeof metrics[number], number>;
 
   const delta = Object.fromEntries(
@@ -294,9 +471,25 @@ function buildClientComparison(
     );
   };
 
+  const predictAnchoredFoodPriceIndex = (
+    baselineTemperature: number,
+    scenarioTemperature: number,
+    year: number,
+  ) => {
+    const params = FOOD_AGRICULTURE_IMPACT_MODEL.params.food_price_index;
+    const baselineValue = predictFoodMetric("food_price_index", baselineTemperature, year);
+    const temperatureCoef = Math.abs(params.temperature_anomaly);
+    const scenarioValue = Math.max(
+      0,
+      baselineValue + temperatureCoef * (scenarioTemperature - baselineTemperature),
+    );
+    return { baselineValue, scenarioValue };
+  };
+
+  const foodPrice = predictAnchoredFoodPriceIndex(baselineTarget.p50, scenarioTarget.p50, targetYear);
   const baselineFood = {
     undernourishment_pct: predictFoodMetric("undernourishment_pct", baselineTarget.p50, targetYear),
-    food_price_index: predictFoodMetric("food_price_index", baselineTarget.p50, targetYear),
+    food_price_index: foodPrice.baselineValue,
     agricultural_water_stress_pct: predictFoodMetric(
       "agricultural_water_stress_pct",
       baselineTarget.p50,
@@ -305,7 +498,7 @@ function buildClientComparison(
   };
   const scenarioFood = {
     undernourishment_pct: predictFoodMetric("undernourishment_pct", scenarioTarget.p50, targetYear),
-    food_price_index: predictFoodMetric("food_price_index", scenarioTarget.p50, targetYear),
+    food_price_index: foodPrice.scenarioValue,
     agricultural_water_stress_pct: predictFoodMetric(
       "agricultural_water_stress_pct",
       scenarioTarget.p50,
@@ -383,6 +576,7 @@ function buildClientComparison(
       baselineTarget.p50,
       scenarioTarget.p50,
       targetYear,
+      request.scenario_modifiers,
     ),
     run_metadata: {
       generated_at: new Date().toISOString(),
@@ -423,6 +617,21 @@ function withDerivedImpacts(response: ComparisonResponse): ComparisonResponse {
     );
   };
 
+  const predictAnchoredFoodPriceIndex = (
+    baselineTemperature: number,
+    scenarioTemperature: number,
+    year: number,
+  ) => {
+    const params = FOOD_AGRICULTURE_IMPACT_MODEL.params.food_price_index;
+    const baselineValue = predictFoodMetric("food_price_index", baselineTemperature, year);
+    const temperatureCoef = Math.abs(params.temperature_anomaly);
+    const scenarioValue = Math.max(
+      0,
+      baselineValue + temperatureCoef * (scenarioTemperature - baselineTemperature),
+    );
+    return { baselineValue, scenarioValue };
+  };
+
   const heatImpact =
     response.heat_impact ??
     (() => {
@@ -459,9 +668,14 @@ function withDerivedImpacts(response: ComparisonResponse): ComparisonResponse {
   const foodImpact =
     response.food_agriculture_impact ??
     (() => {
+      const foodPrice = predictAnchoredFoodPriceIndex(
+        baselineTarget.p50,
+        scenarioTarget.p50,
+        targetYear,
+      );
       const baselineFood = {
         undernourishment_pct: predictFoodMetric("undernourishment_pct", baselineTarget.p50, targetYear),
-        food_price_index: predictFoodMetric("food_price_index", baselineTarget.p50, targetYear),
+        food_price_index: foodPrice.baselineValue,
         agricultural_water_stress_pct: predictFoodMetric(
           "agricultural_water_stress_pct",
           baselineTarget.p50,
@@ -470,7 +684,7 @@ function withDerivedImpacts(response: ComparisonResponse): ComparisonResponse {
       };
       const scenarioFood = {
         undernourishment_pct: predictFoodMetric("undernourishment_pct", scenarioTarget.p50, targetYear),
-        food_price_index: predictFoodMetric("food_price_index", scenarioTarget.p50, targetYear),
+        food_price_index: foodPrice.scenarioValue,
         agricultural_water_stress_pct: predictFoodMetric(
           "agricultural_water_stress_pct",
           scenarioTarget.p50,
@@ -499,7 +713,12 @@ function withDerivedImpacts(response: ComparisonResponse): ComparisonResponse {
 
   const ecosystemImpact =
     response.ecosystem_impact ??
-    buildEcosystemImpact(baselineTarget.p50, scenarioTarget.p50, targetYear);
+    buildEcosystemImpact(
+      baselineTarget.p50,
+      scenarioTarget.p50,
+      targetYear,
+      response.request.scenario_modifiers,
+    );
 
   return {
     ...response,

@@ -61,9 +61,10 @@ export function FoodAgricultureImpacts({ result }: Props) {
   const year = result.request.target_year;
   const warming = result.scenario.target_year.p50;
   const risk = foodRiskMeta(warming);
-  const riskPercent = Math.round(risk.percent);
   const foodPriceIndex = impact.scenario.food_price_index;
+  const baselineFoodPriceIndex = impact.baseline.food_price_index;
   const waterStress = impact.scenario.agricultural_water_stress_pct;
+  const baselineWaterStress = impact.baseline.agricultural_water_stress_pct;
 
   return (
     <section className="support-card impacts-card impacts-card-visual">
@@ -88,11 +89,11 @@ export function FoodAgricultureImpacts({ result }: Props) {
         <div className="impact-metric-grid">
           <div className="impact-metric-tile food">
             <strong>{foodPriceIndex.toFixed(1)}</strong>
-            <span>Estimated food price index</span>
+            <span>Estimated food price index · baseline {baselineFoodPriceIndex.toFixed(1)}</span>
           </div>
           <div className="impact-metric-tile food">
             <strong>{waterStress.toFixed(1)}%</strong>
-            <span>Estimated agricultural water stress</span>
+            <span>Estimated agricultural water stress · baseline {baselineWaterStress.toFixed(1)}%</span>
           </div>
         </div>
 
@@ -102,16 +103,6 @@ export function FoodAgricultureImpacts({ result }: Props) {
           This card emphasizes scenario-responsive food-system pressure estimates rather than a
           fake precise hunger percentage. The estimates are anchored in historical global
           relationships from {impact.training_years.start} to {impact.training_years.end}.
-        </div>
-
-        <div className="impact-risk-row">
-          <div className="impact-risk-labels">
-            <span>Risk level</span>
-            <span>{riskPercent}%</span>
-          </div>
-          <div className="impact-risk-track" aria-hidden="true">
-            <span className="impact-risk-fill food" style={{ width: `${risk.percent}%` }} />
-          </div>
         </div>
       </article>
     </section>

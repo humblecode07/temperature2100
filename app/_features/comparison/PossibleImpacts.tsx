@@ -82,13 +82,15 @@ type Props = {
 export function PossibleImpacts({ result }: Props) {
   const warming = result.scenario.target_year.p50;
   const risk = buildRiskMeta(warming);
-  const riskPercent = Math.round(risk.percent);
   const heatImpact = result.heat_impact;
   const year = result.request.target_year;
   const comparisonText = deltaLabel(result);
 
+  const baselineMortalityRate = heatImpact?.baseline.heat_mortality_rate ?? null;
   const mortalityRate = heatImpact?.scenario.heat_mortality_rate ?? null;
+  const baselineWorkLossPressure = heatImpact?.baseline.heat_work_loss_pp ?? null;
   const workLossPressure = heatImpact?.scenario.heat_work_loss_pp ?? null;
+  const baselineDeaths = heatImpact?.baseline.annual_heat_deaths ?? null;
   const deaths = heatImpact?.scenario.annual_heat_deaths ?? null;
   const deathDelta = heatImpact?.delta.annual_heat_deaths ?? null;
   const trainingYears = heatImpact?.training_years ?? null;
@@ -116,15 +118,24 @@ export function PossibleImpacts({ result }: Props) {
         <div className="impact-metric-grid">
           <div className="impact-metric-tile">
             <strong>{mortalityRate !== null ? mortalityRate.toFixed(2) : "N/A"}</strong>
-            <span>Estimated heat mortality rate</span>
+            <span>
+              Estimated heat mortality rate
+              {baselineMortalityRate !== null ? ` · baseline ${baselineMortalityRate.toFixed(2)}` : ""}
+            </span>
           </div>
           <div className="impact-metric-tile">
             <strong>{deaths !== null ? formatWhole(deaths) : "N/A"}</strong>
-            <span>Estimated annual heat deaths</span>
+            <span>
+              Estimated annual heat deaths
+              {baselineDeaths !== null ? ` · baseline ${formatWhole(baselineDeaths)}` : ""}
+            </span>
           </div>
           <div className="impact-metric-tile">
             <strong>{workLossPressure !== null ? formatWhole(workLossPressure) : "N/A"}</strong>
-            <span>Estimated heat work-loss pressure</span>
+            <span>
+              Estimated heat work-loss pressure
+              {baselineWorkLossPressure !== null ? ` · baseline ${formatWhole(baselineWorkLossPressure)}` : ""}
+            </span>
           </div>
           <div className="impact-metric-tile">
             <strong>{deathDelta !== null ? formatSignedWhole(deathDelta) : comparisonText}</strong>
@@ -142,16 +153,6 @@ export function PossibleImpacts({ result }: Props) {
           {trainingYears
             ? `These heat metrics are estimated from the historical heat-impact relationship learned from ${trainingYears.start} to ${trainingYears.end}, using the projected warming level and target year.`
             : "Heat-impact estimates are unavailable, so this card uses warming-band interpretation only."}
-        </div>
-
-        <div className="impact-risk-row">
-          <div className="impact-risk-labels">
-            <span>Risk level</span>
-            <span>{riskPercent}%</span>
-          </div>
-          <div className="impact-risk-track" aria-hidden="true">
-            <span className="impact-risk-fill" style={{ width: `${risk.percent}%` }} />
-          </div>
         </div>
       </article>
     </section>

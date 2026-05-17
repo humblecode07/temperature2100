@@ -81,7 +81,10 @@ export function ScenarioControls({
           <span>CO2 emissions</span>
           <strong>{formatSignedPercent(draft.co2)}</strong>
         </label>
-        <p>Relative to baseline.</p>
+        <p>
+          Adjusts how much carbon dioxide is released into the atmosphere compared with the
+          baseline pathway. Higher values intensify long-term warming.
+        </p>
         <input
           id="co2"
           type="range"
@@ -98,7 +101,10 @@ export function ScenarioControls({
           <span>Forest loss pressure</span>
           <strong>{formatSignedPercent(draft.forestLoss)}</strong>
         </label>
-        <p>Relative to baseline.</p>
+        <p>
+          Adjusts how quickly forests are lost compared with the baseline pathway. Higher values
+          weaken carbon storage and make warming pressure harder to offset.
+        </p>
         <input
           id="forestLoss"
           type="range"
@@ -115,7 +121,10 @@ export function ScenarioControls({
           <span>Renewable adoption</span>
           <strong>{formatSignedPercent(draft.renewables)}</strong>
         </label>
-        <p>Relative to baseline.</p>
+        <p>
+          Adjusts how strongly renewable energy replaces fossil-heavy energy compared with the
+          baseline pathway. Higher values help slow the warming trend.
+        </p>
         <input
           id="renewables"
           type="range"
